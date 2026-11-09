@@ -1,202 +1,248 @@
-# HiJack breathing — project draft
+# HiJack breathing
 
-**Team:** Kateřina Hoffmannová & Adrian Jiřík
+**Authors:** Kateřina Hoffmannová and Adrian Jiřík
 
-**Status:** motion dashboard, calibration and CSV recorder are implemented. The current model recognizes all four classes from `Data/`, with ESP32 inference and the BLE mobile monitor. See [four-state training and results](training/FOUR_STATE.md), [mobile monitor](monitor/README.md) and [firmware instructions](firmware/README.md). The earlier two-class model remains available as a reproducible milestone.
+**Course:** Computer-Aided Medical Diagnostics (MPA-PRM), Application IV
 
-**Mobile BLE monitor:** <https://adajirik.github.io/HiJack_breathing/>. Android: Chrome; iPhone: Bluefy. Connect to `HiJack-Detect`, then press Start detection. Blue means not attached, magenta shaking, green calm breathing and red fast breathing. The existing Wi-Fi dashboard remains at <http://192.168.4.1/>. Allow four seconds for the first classification.
+**Assignment:** [Real-time AI on a microcontroller](https://tomasvicar.github.io/AUI-public/labs/real-time-ai.html)
 
-**Current evaluation:** 100% held-out window accuracy and 1.0 macro-F1 on 104 overlapping windows from eight complete test recordings. This small test does not establish new-person or remounting performance; see the saved results and limitations. The prior two-class milestone scored 75%.
+An ESP32-S3 reads an MPU-6050 accelerometer and gyroscope and classifies four activities. Sampling, feature extraction and classification run on the board. A phone receives the result over Bluetooth Low Energy (BLE). A separate page served by the board provides live signals, class probabilities, a 3D orientation view and CSV recording.
 
-**Draft date:** 9 November 2026.
-
-**Repository:** <https://github.com/AdaJirik/HiJack_breathing>
-
-**Assignment:** [Real-time AI on a microcontroller — lab](https://tomasvicar.github.io/AUI-public/labs/real-time-ai.html).
-
-This draft translates the assignment into a proposed implementation and a four-hour lab plan. Requirements below come from the assignment checked on the draft date. Sampling rates, model sizes, time limits and performance targets are starting proposals to validate on the actual hardware, not assignment requirements or measured results.
-
-## 1. Goal and required outputs
-
-Build a device using the supplied **ESP32-S3 N16R8** and **MPU-6050 / GY-521 accelerometer and gyroscope**. First demonstrate slow movement versus shaking, then extend the same device to all four states:
-
-| State | LED | Example |
+| Class | Board LED and BLE screen | Measurement condition |
 | --- | --- | --- |
-| Calm breathing | Green | Sensor held steadily against the chest |
-| Fast breathing | Red | Clearly faster breathing with the same placement |
-| Not attached | Blue | Held in the hand, moved slowly, or lying on a table |
-| Shaking | Magenta | Deliberately shaken device |
+| `not_attached` | Blue | Device lying still or held/moved slowly in the hand |
+| `shaking` | Magenta | Device being shaken |
+| `calm_breathing` | Green | Sensor held steadily against a calmly breathing chest |
+| `fast_breathing` | Red | Same chest placement, with faster breathing |
 
-The ESP32 must acquire the signal, calculate features and run the trained classifier itself. During the demonstration USB supplies power only: disable USB data logging and do not send measurements to a computer for classification. The PC is used beforehand for recording, training and flashing. Wi-Fi and BLE provide the required displays.
+## 1. Pages and connections
 
-| Deliverable | Points | Evidence to show live |
+| Interface | Address / device | Connection | Purpose |
+| --- | --- | --- | --- |
+| BLE monitor | [adajirik.github.io/HiJack_breathing](https://adajirik.github.io/HiJack_breathing/) | Bluetooth device **HiJack-Detect** | Start/stop detection, matching screen colour, connection status and state history |
+| Board dashboard | [http://192.168.4.1/](http://192.168.4.1/) | Wi-Fi **HiJack-Motion**, password **hijack32** | Signals, class probabilities, 3D orientation, calibration and CSV recording |
+| Source repository | [AdaJirik/HiJack_breathing](https://github.com/AdaJirik/HiJack_breathing) | Internet | Firmware, training code, recordings, models and documentation |
+
+The local board address works only while connected to its Wi-Fi. The BLE monitor is hosted over HTTPS and does not require joining that network. The board's plain HTTP page cannot use Web Bluetooth.
+
+### Start detection over BLE
+
+1. Power the ESP32 and enable Bluetooth on the phone.
+2. Open the [BLE monitor](https://adajirik.github.io/HiJack_breathing/) in **Chrome on Android**. On **iPhone**, open the same URL in [Bluefy](https://apps.apple.com/app/id1492822055); Safari and Chrome on iPhone do not provide Web Bluetooth. Chrome or Edge on a BLE-capable Windows computer can also be used.
+3. Press **Connect ESP32** and select **HiJack-Detect**. The page identifies the board by its advertised service UUID; pairing in phone settings is not required.
+4. Press **Start detection**. Maintain the activity for at least four seconds while the first window fills. For breathing, keep the sensor steadily against the chest in the same placement used during recording.
+5. The page and RGB LED show the same classified state. **Stop** stops classification and turns off the RGB LED. **Disconnect** closes BLE; detection continues on the board until stopped or reset.
+
+Keep the monitor in the foreground. Notifications arrive on state changes and as a 200 ms heartbeat. After 1.5 seconds without updates, the screen becomes neutral and reports the interruption. History contains the latest 20 state changes and clears on reload. Refresh the monitor after firmware/page updates.
+
+### Open the Wi-Fi dashboard
+
+1. Join **HiJack-Motion**, password **hijack32**.
+2. Stay connected if the operating system reports that the network has no internet.
+3. Open **http://192.168.4.1/** explicitly using HTTP.
+
+The page shows acceleration, angular velocity, X/Y/Z movement traces, the 3D sensor model and four class probabilities. The **Gravity removed** trace becomes available after orientation calibration. Start detection through the BLE monitor to populate the classification panel. Wi-Fi and BLE can operate together.
+
+## 2. Hardware and wiring
+
+- **ESP32-S3 N16R8** development board: 16 MB flash and 8 MB PSRAM; this firmware does not use PSRAM.
+- **MPU-6050** accelerometer/gyroscope breakout, GY-521 / HW-123 type.
+- Breadboard, jumper wires and USB cable/power supply.
+- Onboard addressable RGB LED, configured on **GPIO48**.
+
+<img src="docs/wiring.jpeg" alt="ESP32-S3 and MPU-6050 wired on a breadboard, with the onboard RGB LED illuminated" width="500">
+
+Disconnect USB power before changing wiring. Use printed pin labels rather than wire colours or breadboard row numbers.
+
+| MPU-6050 pin | ESP32-S3 connection | Function |
+| --- | --- | --- |
+| VCC | **3V3** | Sensor-module power |
+| GND | **GND** | Common ground |
+| SDA | **GPIO8** | I²C data |
+| SCL | **GPIO9** | I²C clock |
+| AD0 | **GND** | Select I²C address `0x68` |
+| XDA, XCL, INT | Unconnected | Not required by the polling implementation |
+
+Both sensors are inside the same MPU-6050: all six axes use the same SDA/SCL pair. Breadboard holes in each five-hole row are connected; the centre gap separates the groups. Place each jumper in the same group/row as its intended pin.
+
+The firmware uses **400 kHz I²C**, verifies the sensor identity and also tries address `0x69` if AD0 is high. Sensor settings are **±2 g acceleration**, **±250°/s angular velocity**, **44 Hz acceleration / 42 Hz gyro low-pass filtering**, and **100 Hz output rate**. GPIO signals use 3.3 V logic. A board revision with its RGB LED on GPIO38 requires changing `MOTION_RGB_PIN`; our configured board uses GPIO48.
+
+Move the complete assembly together during measurement to avoid pulling on the sensor wires. USB can supply power during the demonstration; inference does not require USB data or computation on a computer.
+
+## 3. Build and flash
+
+The project uses **PlatformIO 6.2.0**, **Espressif32 platform 6.12.0** and **Arduino-ESP32 2.0.17**. `Wire`, Wi-Fi, HTTP and BLE come from the framework. The exported model does not need an external inference runtime.
+
+From PowerShell:
+
+```powershell
+git clone https://github.com/AdaJirik/HiJack_breathing.git
+cd HiJack_breathing
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install platformio==6.2.0 pyserial==3.5
+.\.venv\Scripts\python.exe -m serial.tools.list_ports -v
+.\.venv\Scripts\python.exe -m platformio run -d firmware
+.\.venv\Scripts\python.exe -m platformio run -d firmware -t upload --upload-port COM3
+```
+
+Use a data-capable USB cable and replace `COM3` with the detected port. COM3 was the CH343 USB-UART port on our computer. If no port appears, check the cable, USB-UART socket and driver. If automatic bootloader entry fails, hold **BOOT**, tap **RESET**, release **BOOT**, then retry.
+
+The build configuration is [firmware/platformio.ini](firmware/platformio.ini). After flashing, use either interface above. Resetting clears orientation calibration, pending recordings and the detection state.
+
+## 4. Data collection
+
+[Data/](Data/) contains **40 recordings**, ten per class, each approximately **10 seconds** long: **39,999 samples** in total. One recording has 999 samples; the others have 1,000.
+
+To record through the dashboard:
+
+1. Select **Not attached**, **Shaking**, **Calm breathing** or **Fast breathing**.
+2. Enter a filename, prepare the activity and press **Record 10 seconds**. Capture starts immediately.
+3. Maintain that activity during the countdown. The ESP32 captures all six axes independently of browser updates.
+4. When **Keep this measurement?** appears, select **Confirm & save CSV** or **Discard**.
+
+The filename is the provided base followed by the class, for example `session01_calm_breathing.csv`. There is no random suffix, and the class is not repeated in each data row. The browser handles the download. Only one capture is retained in board RAM; save it before another capture or power-off. A sensor-read failure invalidates the recording.
+
+```text
+timestamp_us,ax_m_s2,ay_m_s2,az_m_s2,gx_deg_s,gy_deg_s,gz_deg_s,session_id,sample_index,device_sample_seq,calibrated,accel_scale
+```
+
+`timestamp_us` is relative to capture start. Acceleration is in **m/s²**, including gravity; angular velocity is in **degrees/s**. These are sensor-frame values without the 3D view's gain correction or gyro-bias subtraction. `session_id` identifies the recording; indices help inspect continuity. `calibrated` and `accel_scale` preserve visualization-calibration context, but that gain is not applied to the stored axes.
+
+Detached examples include a stationary device and slow hand movement. Breathing examples use steady chest contact; shaking examples use deliberate shaking. Labels describe the recorded activity rather than a clinical breathing-rate threshold. The dataset does not contain subject IDs or an independent new-person evaluation.
+
+## 5. Classifier and features
+
+The active classifier is a **multilayer perceptron (MLP)**: **24 inputs → 16 hidden units → 4 outputs**, with **468 learned parameters**. Hidden units use **ReLU** and outputs use **softmax**. Output order is `not_attached`, `shaking`, `calm_breathing`, `fast_breathing`.
+
+Each window of six-axis raw data is reduced to 24 features:
+
+| Feature group | Count | Information represented |
 | --- | ---: | --- |
-| Movement versus shaking | 2.5 | Slow movement gives blue; shaking gives magenta; switch back |
-| Breathing and all four states | 2.5 | Calm/fast breathing, removal and shaking on one device |
-| BLE monitor on GitHub Pages | 1.5 | State, timeline, two duration alarms and connection-loss alarm |
-| Page served by the ESP32 | 1.0 | Live signal and probabilities for every class over its Wi-Fi hotspot |
-| Own extension | 1.5 | Demonstrate and explain one working addition |
-| Documentation | 1.0 | Reproducible wiring, firmware, training and results |
+| Combined XYZ acceleration and gyro standard deviations; acceleration-magnitude standard deviation; acceleration and gyro successive-sample difference RMS; gyro RMS | 6 | Motion amplitude and how quickly it changes |
+| Standard deviation of each acceleration and gyro axis | 6 | Axis-dependent motion and chest tilt |
+| Acceleration and gyro power at **0.15, 0.25, 0.4, 0.6, 0.9 and 1.2 Hz**, summed across each sensor's three axes | 12 | Low-frequency breathing patterns |
 
-**Compulsory submission conditions:** share the repository with GitHub user `tomasvicar` before the lab ends, and make **at least three intermediate commits during the lab, pushing each as work progresses**. Missing either condition means zero points for the project. A planning commit before the lab does not replace these lab commits. Every scored part must be demonstrated to the teacher before the lab ends.
+Amplitude features use `log(1 + value)`. Spectral features use `log(1 + power)` after signal centering and a Hann window. All features are standardized using fitted training means and scales. Python computes spectral powers through Fourier projections; the ESP32 uses equivalent Goertzel calculations.
 
-## 2. Proposed architecture
+[four_state_model.h](firmware/include/four_state_model.h) contains exported normalization, weights and biases. [four_state.h](firmware/include/four_state.h) implements features and online decisions. The model uses raw data: **level calibration is not required for classification or recording**. Softmax outputs are model probabilities, not verified clinical confidence estimates.
 
-```text
-MPU-6050 (accelerometer + gyroscope, I2C)
-                  |
-                  v
-ESP32: timed sampling -> ring buffer -> features -> trained classifier
-                                                    |
-                                         probabilities + smoothing
-                                                    |
-                  +---------------------------------+------------------+
-                  |                                 |                  |
-              RGB LED                    Wi-Fi AP + HTTP page     BLE service
-                                         signal + probabilities        |
-                                                               GitHub Pages
-                                                               state + timeline
-                                                               duration/loss alarms
+### Detection window and timing
 
-Development only: USB recordings -> Python training/evaluation -> C++ model export
-```
-
-Keep sampling independent of web requests and BLE notifications. Start with a small feature-based model so we can inspect its decisions and export it without a large inference framework.
-
-## 3. Hardware and first bring-up
-
-Available kit: ESP32-S3 N16R8, GY-521, breadboard, jumper wires and USB cable. Move the complete breadboard with both modules together; keep it steady against the chest for breathing recordings.
-
-1. Identify the exact board variant and its pinout. Confirm the onboard RGB LED pin, LED type and colour order; do not assume a generic ESP32 pin mapping.
-2. Wire the sensor's power, common ground, SDA and SCL. Confirm the breakout's supply requirements and I2C pull-ups; ESP32 GPIO signals must stay at 3.3 V logic levels. Record the final GPIO mapping here.
-3. Run an I2C scan and check the sensor identity. Confirm its address, including the AD0 configuration.
-4. Read all six axes at a stable rate. Check units, axis signs, missing samples and stationary noise. Photograph the wiring.
-5. Test each required LED colour. Test BLE advertising and a notification with nRF Connect before writing the browser monitor.
-
-| Connection | Planned value |
+| Quantity | Setting |
 | --- | --- |
-| GY-521 VCC -> board supply | Confirm from the actual module |
-| GY-521 GND -> board GND | Common ground |
-| GY-521 SDA -> ESP32 GPIO | TBD after board pinout check |
-| GY-521 SCL -> ESP32 GPIO | TBD after board pinout check |
-| Onboard RGB LED pin/type | TBD after board identification |
+| Sampling rate | **100 Hz** |
+| Classification window | **400 samples = 4 seconds** |
+| Window advance | **50 samples = 0.5 seconds** |
+| Overlap | **87.5%** |
+| First result | After a complete four-second window |
+| Probability smoothing | Exponential average, weight **0.5** for the new output |
+| State switching | Two consecutive new-class winners |
 
-**Wiring photo:** pending; add `docs/wiring.jpg` and embed it in this README before submission.
+Transitions are not instantaneous: the window initially contains the previous activity, and smoothing adds delay. Maintain each activity for several seconds during a demonstration. Four seconds captures low-frequency structure but may contain only part of a slow breath. The program does not estimate breaths per minute.
 
-Proposed tools: Arduino framework in PlatformIO, a compatible MPU-6050 driver, Python with NumPy/scikit-learn for training, and plain HTML/CSS/JavaScript for the monitor. Verify board support and pin working dependency versions when setting up; use Arduino IDE if it gets the supplied board running sooner.
+## 6. Model training
 
-## 4. Data collection and honest evaluation
+From the repository root:
 
-Start with **50 Hz**, logging timestamps and six axes over USB during development. Verify the actual sampling rate rather than assuming the loop timing is exact. Proposed CSV fields:
-
-```text
-timestamp_us,ax,ay,az,gx,gy,gz,label,subject_id,session_id
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r training/requirements.txt
+.\.venv\Scripts\python.exe training/train_four_state.py
 ```
 
-Document acceleration and angular-velocity units, sensor ranges, filtering, mounting orientation and sampling configuration. Save one labelled recording per file and note transitions separately.
+Training uses **NumPy 2.2.6** and **scikit-learn 1.7.2**. The pipeline:
 
-1. Record slow hand movement and shaking first: several independent takes per class, roughly 30–60 seconds per take.
-2. Add calm breathing, fast breathing and detached recordings. Detached data must include both hand-held and lying still cases. Aim for at least three independent takes per final class, ideally across both team members, with remounting between takes.
-3. Mark labels as instructed activities, not clinical diagnoses. Keep breathing demonstrations brief and comfortable. Exclude transition segments from initial training and test transitions separately.
-4. **Split complete recordings into train/validation/test groups before windowing.** Never randomly split overlapping windows from the same recording across groups. Keep every split represented by all four classes; gather more recordings if necessary.
-5. Fit scaling and any feature selection on training data only. Use validation data for tuning and keep the test recordings untouched until final evaluation. If enough data are available, also hold out one person to examine generalization.
+1. Reads filename labels and validates samples, timestamps, rate and duplicate recordings.
+2. Splits **complete recordings before creating overlapping windows**, using seed **42**: 24 initial training, 8 validation and 8 test recordings.
+3. Compares multinomial logistic regression and 16/24-unit MLPs using four-fold recording-group cross-validation on the **32 development recordings**. Each fold fits its own normalization.
+4. Selects the **16-unit MLP**, trained with L-BFGS and L2 regularization (`alpha=0.5`). The larger network ties its development score without improving it.
+5. Fits the selected model on the 32 development recordings and evaluates the eight excluded test recordings.
+6. Saves the reports, split, source hashes, parameters, reference windows and generated C++ header.
 
-Report recording counts and durations per class, the split manifest, confusion matrix, per-class precision/recall/F1 and macro-F1. Save the random seed and settings. Report performance on the device and state transitions separately from offline window accuracy.
+The eight test recordings are excluded from the deployed weights. After retraining, rebuild and flash the firmware. The earlier two-class pipeline remains in [train_movement.py](training/train_movement.py); the current pipeline is [train_four_state.py](training/train_four_state.py).
 
-## 5. Signal processing and model
+## 7. Results and limitations
 
-**First milestone:** a trained two-class model that separates slow movement from shaking and drives blue/magenta on the board. A threshold rule is useful as a comparison and debugging tool; the final pipeline still includes a trained classifier.
+The eight held-out recordings, two per class, produce **104 overlapping windows**. Window accuracy is **100%** and macro-F1 is **1.0**. Rows are actual classes; columns are predictions.
 
-**Four-class starting point:** an 8-second sliding window at 50 Hz, evaluated once per second. This is 400 samples per axis, about 9.6 kB for six float32 channels, excluding all other buffers. Compare 4-, 8- and 12-second windows using validation recordings: shorter windows react sooner but may contain too few slow breaths. Measure startup delay and transition delay explicitly.
+| Actual / predicted | Not attached | Shaking | Calm breathing | Fast breathing |
+| --- | ---: | ---: | ---: | ---: |
+| Not attached | 26 | 0 | 0 | 0 |
+| Shaking | 0 | 26 | 0 | 0 |
+| Calm breathing | 0 | 0 | 26 | 0 |
+| Fast breathing | 0 | 0 | 0 | 26 |
 
-Candidate features, kept small enough to reproduce in C++:
+These results concern our recordings. Overlapping windows are not independent trials; development cross-validation macro-F1 varies from approximately **0.81 to 1.0**. Performance on new people, remounted sensors and continuous transitions has not been established. Some shaking samples reach the ±2 g / ±250°/s sensor limits. Changing ranges would require compatible training data.
 
-- Per-axis mean and standard deviation; dynamic acceleration RMS and peak-to-peak amplitude.
-- Gyroscope RMS and acceleration-change energy to identify shaking.
-- Low-frequency energy, dominant frequency and periodicity from a chest-sensitive axis or a projection learned using training data only.
-- Optional log transforms for strictly positive amplitude features, with a fixed epsilon.
+Hardware checks verified BLE Start/Stop and live colour notifications, fresh sensor readings without I²C errors, and approximately **99.9 Hz** sampling during classification. Feature extraction plus inference took about **41.8 ms** in an observed run. Sampling runs on core 1; classification runs separately on core 0, outside the sample-buffer lock, so it does not block CSV capture. The final build uses approximately **124 kB static RAM** and **1.42 MB flash**.
 
-Avoid relying only on acceleration magnitude: small chest tilts can appear mainly as changes in gravity across individual axes. Inspect plots before choosing axes or filters. Keep identical feature order, units, filtering, scaling and numerical constants in Python and firmware.
+Native tests compare four-class C++ probabilities with Python within **0.0001**, and check LED mapping, buffer order, startup, stop and fault recovery. Browser-script tests cover the dashboard, recording confirmation, BLE colours, history and disconnected/stale states. Actual chest-mounted performance still needs a live demonstration with the intended placement.
 
-Train a compact MLP, initially one hidden layer of about 16 units, and compare it with a simpler classifier. Export feature normalization, weights, biases, activation definitions and class order into a versioned C++ header. Use numerically stable softmax for the multiclass output and verify its outputs against Python on saved reference windows. Probabilities are model outputs, not guaranteed calibrated confidence estimates.
+See the [evaluation report](models/four_state_report.json), [recording split](models/four_state_split.json), [data quality](models/four_state_data_quality.json) and [training details](training/FOUR_STATE.md). This is a coursework prototype, not a clinical monitor; it has no explicit unknown-activity class.
 
-Smooth decisions over approximately two seconds and tune on validation data. Display a startup/buffering state until a full window exists. Explicitly report an I2C/sensor fault instead of continuing to display an old confident class. Record inference time, sampling overruns and memory use with Wi-Fi and BLE enabled together.
+## 8. Own extension: 3D motion and recording workstation
 
-## 6. Two separate user interfaces
+The assignment requires a signal/prediction page. Our extension adds a **motion visualization and data-collection workstation** to that page:
 
-### ESP32 Wi-Fi page
+- A 3D sensor model follows estimated orientation, with roll, pitch and yaw values.
+- **Calibrate level** establishes a horizontal reference, stationary gyro bias and uniform gravity-scale correction. Lay the sensor flat, component side up, and leave it still for approximately **3.1 seconds** after pressing the button.
+- Gravity-compensated acceleration appears as a direction arrow, signed values, movement intensity and a time trace. Raw XYZ traces are available before calibration.
+- Activity selection, custom filenames, capture progress, confirmation/discard and CSV export allow collecting ten-second training examples without a separate serial logger.
 
-- Start a Wi-Fi access point and serve a local HTTP page; print its SSID and actual page address in the final instructions.
-- Show a scrolling measured-signal plot, the predicted state and four probability bars.
-- Publish bounded recent signal samples and predictions through a small polling endpoint or WebSocket. Start with modest update rates and reduce display traffic if sampling suffers.
-- Expose sample rate, dropped samples and model version for debugging. The displayed classification must come from the ESP32.
+Orientation fusion runs on the ESP32; the browser renders the 3D geometry. Gravity constrains roll and pitch, but yaw drifts without a magnetometer. The display shows **orientation and acceleration**, not reconstructed position, distance or travel direction. Calibration affects visualization; classification and exported raw samples remain independent of it.
 
-### GitHub Pages BLE monitoring station
+## 9. Verification and troubleshooting
 
-- Host a static page over HTTPS; add the deployed URL to this README. If the main repository is private and the account cannot use Pages for it, use a separate public monitor repository as the assignment suggests.
-- Use a Connect button to request Web Bluetooth access. Test early in a supported Chrome/Edge browser on a BLE-capable computer or Android Chrome; do not assume Safari, Firefox or iPhone Chrome will work.
-- Define and document custom service/characteristic UUIDs. Notify the current state every second and on changes, with a sequence number, device uptime and model probabilities. Keep the payload within the negotiated BLE transport size, or define compact encoding/chunking explicitly.
-- Show the current state, connection status, last update time and a timestamped state timeline. Use browser receipt times for the timeline and device uptime/sequence for detecting resets or gaps.
-- Proposed demo limits: fast breathing continuously for **10 seconds**, detached continuously for **10 seconds**, and a stale-data alarm after **5 seconds** without updates. Also alarm immediately on a BLE disconnect event. These are demonstration settings, not medical thresholds.
-- Reset each duration timer when its state ends. On disconnect or stale data mark the state unknown, stop class-duration accumulation and start fresh after reconnection. Acknowledge/mute should not hide the active alarm condition; sound, if added, requires a user gesture.
+From the repository root:
 
-The board's HTTP page and the HTTPS BLE page have different jobs. The board's plain HTTP page cannot use Web Bluetooth. Test simultaneous Wi-Fi and BLE operation; use a BLE-capable laptop for the monitor if joining the ESP32 hotspot leaves a phone unable to load GitHub Pages.
-
-**Monitoring page URL:** <https://adajirik.github.io/HiJack_breathing/> (two-state movement milestone; breathing alarms remain pending).
-
-## 7. Own extension: live 3D orientation
-
-The selected extension is a **rotating 3D sensor model**, served by the ESP32 over its own Wi-Fi. It includes horizontal stationary calibration, roll/pitch/yaw, gravity-compensated acceleration arrows and signed values, a movement intensity indicator and an acceleration history. The BLE monitor is reserved for the breathing task. The earlier breathing-rate idea is deferred.
-
-The sensor can estimate orientation and acceleration, but cannot reliably track position or travel distance. Heading drifts without a magnetometer. Calibration resets heading and estimates stationary gyro bias. See [firmware/README.md](firmware/README.md) for setup, limitations and the physical validation checklist. The final board-served page must also gain the required breathing signal and class probability display.
-
-## 8. Four-hour lab plan
-
-| Time | Work | Checkpoint |
-| --- | --- | --- |
-| 00:00–00:25 | Wiring, sensor/LED checks, short BLE test, logger | Stable data and correct colours; **push lab commit 1** |
-| 00:25–01:00 | Record movement/shaking, train, export, run on ESP32 | Demonstrate the first 2.5-point part; **push lab commit 2** |
-| 01:00–01:55 | Record breathing/detached, evaluate four classes, deploy | Demonstrate four states; **push lab commit 3** |
-| 01:55–02:35 | BLE notifications, Pages monitor, timeline and alarms | Show both duration alarms and disconnect; push progress |
-| 02:35–03:05 | Board hotspot page, signal plot, probability bars | Verify displays while sampling and BLE run together |
-| 03:05–03:30 | Breathing-rate extension if core work is stable | Compare estimate with reference; push progress |
-| 03:30–04:00 | Integration checks, README/photo/results, teacher demos | Repository access verified and all working parts shown |
-
-Schedule teacher demonstrations as soon as a part works. If breathing is unreliable, inspect placement, class balance and plots first; protect time for showing working parts and documenting actual limitations. Do not postpone all commits or demonstrations until the end.
-
-## 9. Proposed repository structure
-
-The motion firmware and diagnostic tools now exist. The remaining directories below are planned and should be added incrementally:
-
-```text
-firmware/              # ESP32 project, sampler, features, model, LED, BLE, HTTP
-training/              # Recording tools, preprocessing, training, export, evaluation
-data/README.md         # Dataset format, recording protocol and access instructions
-data/splits.json       # Recording-level split manifest
-models/                # Small exported model and training configuration
-monitor/               # Static Web Bluetooth page for GitHub Pages
-docs/                  # Wiring photo, diagrams, results and demo checklist
+```powershell
+node tools/check_dashboard.cjs
+node tools/check_ble_monitor.cjs
+.\.venv\Scripts\python.exe tools/inspect_device.py COM3
+.\.venv\Scripts\python.exe tools/inspect_detection.py
 ```
 
-Exclude build output, local environments and credentials from version control. Decide how to store raw recordings before adding large files; keep enough documented sample data and settings for reproducibility.
+The first two commands check browser scripts without hardware. The diagnostic scripts inspect the connected board; `inspect_detection.py` temporarily starts detection and stops it afterwards. These are development tools, not part of the standalone demonstration. Native tests in [check_four_state.cpp](tools/check_four_state.cpp) and [check_recorder.cpp](tools/check_recorder.cpp) can be built with a C++17 compiler and `firmware/include` on the include path, then run from the repository root. [inspect_ble.py](tools/inspect_ble.py) provides an optional real BLE test and requires `bleak==2.0.0`.
 
-## 10. Completion checklist
+| Problem | Check |
+| --- | --- |
+| Local page does not open | Join **HiJack-Motion**, remain connected despite the no-internet warning, and use **http://192.168.4.1/** |
+| BLE connection fails | Enable Bluetooth, use Android Chrome or iPhone Bluefy, load the HTTPS monitor and disconnect another client if necessary |
+| Page rejects a new state | Refresh the monitor so its script matches the firmware |
+| No classification yet | Press Start and allow four seconds; sensor faults restart warm-up |
+| Breathing is unstable | Keep steady chest contact, match the recorded placement and allow the window to settle |
+| Calibration fails | Keep the sensor flat, component side up and still; ordinary noise is tolerated |
+| 3D heading drifts | Recalibrate; yaw has no compass reference |
+| CSV disappears after reset | Captures are in RAM; confirm and download before power-off |
 
-- [ ] Confirm team names, board details, wiring table and photo.
-- [ ] Record labelled independent sessions and save the split manifest.
-- [ ] Demonstrate movement/shaking and then all four required LED states.
-- [ ] Match Python and ESP32 features/probabilities on reference windows.
-- [ ] Run acquisition and inference without USB data or PC computation.
-- [ ] Demonstrate BLE state/timeline, both duration alarms, stale data and disconnect handling.
-- [ ] Deploy the monitor and insert its real GitHub Pages URL above.
-- [ ] Demonstrate the board's own live signal/probability page.
-- [ ] Validate and demonstrate the chosen extension.
-- [ ] Record measured results, failure cases, build/flash commands and pinned dependencies.
-- [ ] Make at least three intermediate lab commits and push each during the lab.
-- [ ] Share the repository with `tomasvicar` and verify access before the lab ends.
-- [ ] Show every completed part to the teacher before the lab ends.
-- [ ] Document AI assistance and ensure both members can explain the code.
+## 10. Assignment coverage and remaining checks
 
-## 11. AI assistance and current limitations
+| Assignment part | Implemented evidence |
+| --- | --- |
+| Movement versus shaking | On-board classifier; blue/magenta LED and BLE screen |
+| Breathing | Four-state MLP; green/red breathing states and class probabilities |
+| BLE monitor | HTTPS page, Start/Stop, matching colour, timestamped history, connection-loss/stale indication |
+| Board web page | Wi-Fi hotspot, measured signals, prediction and four class probabilities |
+| Own extension | Calibrated 3D orientation, acceleration visualization and confirmed CSV recording |
+| Documentation | Team, wiring/photo, connection instructions, build/flash, collection/training, results and AI use |
 
-Codex was used to read the assignment, prepare the initial plan and Git setup, and implement the motion firmware, embedded visualization, calibration and diagnostic tools. See the firmware instructions for validation details. Breathing classification accuracy and BLE behavior have not been validated. This is a coursework prototype, not a clinical monitor.
+**Remaining BLE requirement:** duration alarms for prolonged fast breathing and prolonged `not_attached` are **not implemented**. Connection loss is indicated visually; there is no audible alarm. These must not be claimed as completed bedside-monitor functionality.
+
+Before submission, verify access for GitHub user **`tomasvicar`**, the minimum of **three intermediate commits pushed during the lab**, and live demonstration of each completed part to the teacher. Git history records implementation milestones; repository access and live demonstrations must be checked separately.
+
+## 11. Repository contents
+
+| Path | Contents |
+| --- | --- |
+| [firmware/](firmware/) | PlatformIO project, sampling, inference, calibration, HTTP page, recorder and BLE |
+| [Data/](Data/) | Original CSV recordings |
+| [training/](training/) | Training/export scripts and model documentation |
+| [models/](models/) | Evaluation, splits, quality reports, parameters and reference windows |
+| [monitor/](monitor/) | Static BLE monitor deployed through GitHub Pages |
+| [tools/](tools/) | Native/browser checks and hardware diagnostics |
+| [docs/wiring.jpeg](docs/wiring.jpeg) | Wiring photograph |
+
+[monitor-pages.yml](.github/workflows/monitor-pages.yml) publishes only the `monitor/` directory. Firmware builds and training run locally.
+
+## 12. Use of AI tools
+
+**Codex (OpenAI)** assisted with planning, firmware and interface implementation, feature extraction, training/export code, tests, debugging and documentation. Training and evaluation ran locally on the project's recorded data; reports are saved in the repository. Both group members are responsible for understanding and explaining the submitted code, model and limitations, as required by the assignment.
