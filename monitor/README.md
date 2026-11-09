@@ -8,7 +8,21 @@ Live page: **https://adajirik.github.io/HiJack_breathing/**
 4. Press **Start detection** and allow four seconds for the first window. Blue means `not_attached`, magenta `shaking`, green `calm_breathing` and red `fast_breathing`. For breathing, keep the sensor steadily against the chest as during recording. Classifications update every 500 ms; smoothing and the four-second window add transition delay. The screen uses the RGB state sent by the same firmware function that sets the onboard LED.
 5. **Stop** turns off classification and the RGB LED. **Disconnect** closes the phone connection. Detection continues autonomously on the board if the connection drops; reconnect to see it and press Stop if desired.
 
-Keep the page in the foreground. The connection badge and history show interruptions; after 1.5 seconds without fresh notifications, the screen becomes neutral instead of showing an old classification. History is bounded to the latest 20 changes in memory and clears when the page reloads. No analytics, server upload or external JavaScript library is used.
+Keep the page in the foreground. The connection badge and history show interruptions; after 1.5 seconds without fresh notifications, the screen becomes neutral and raises a connection alarm. History is bounded to the latest 20 state/alarm events in memory and clears when the page reloads. No analytics, server upload or external JavaScript library is used.
+
+## Alarms
+
+- **Fast breathing:** default 10 continuous seconds of classified fast breathing.
+- **Not attached:** default 10 continuous seconds of classified not attached.
+- **Connection lost:** immediate on an unexpected disconnect, or after 1.5 seconds without fresh notifications.
+
+These are demonstration limits, not clinical thresholds. The four-second model window and smoothing happen before the page sees a state, so the duration starts at recognized state entry, not physical activity onset. Thresholds can be changed to 1–300 whole seconds using **Alarm settings → Apply limits** and are stored locally when browser storage is available. For a quick lab demo, use 3 seconds temporarily, then return to 10.
+
+Only a continuous, fresh state episode counts. State changes, STOP, warm-up, sensor faults and unreliable updates reset the relevant timer. Reconnection starts a fresh timer; separated episodes never add up. Duplicate or older BLE packets cannot keep a stale stream alive. Timing uses a monotonic clock.
+
+Alarms show a visible banner, add start/clear events to history and repeat a short two-tone sound every two seconds. Audio is initialized/resumed from Connect, Start or **Enable / test sound**, following [browser audio gesture requirements](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices#autoplay_policy). **Mute this alarm** silences the current episode while leaving its warning visible; a new episode is audible again. **Unmute this alarm** restores sound. The screen's background keeps the current LED colour while the data are valid.
+
+Unexpected connection loss alarms even if detection was stopped but BLE was still connected. Deliberately pressing **Disconnect** ends the session without an alarm. To demonstrate the loss alarm, switch off the board or disable Bluetooth. Keep the page foregrounded and media volume audible; mobile suspension, muted audio or browser policy can prevent sound. The test button lets the operator check audio before a demonstration.
 
 The monitor is independent of the existing Wi-Fi dashboard at http://192.168.4.1/. You do not need to join the board's Wi-Fi to use BLE. The plain HTTP board page cannot use Web Bluetooth; the monitor must be loaded from HTTPS (or localhost for development). A Wi-Fi dashboard CSV download may briefly delay LED/notification updates while the HTTP transfer completes.
 
@@ -42,8 +56,8 @@ Before building the page, BLE can also be inspected with nRF Connect for Mobile 
 
 ## Checks
 
-`node tools/check_ble_monitor.cjs` verifies the page's real script against protocol fixtures: exact colours, control writes, history, duplicate/reordered packets, stale data and disconnect handling. `tools/inspect_ble.py` can test the actual board over BLE using the optional Python `bleak==2.0.0` package. Android/iPhone browser behavior and physical LED colour require hands-on validation on those devices.
+`node tools/check_alarms.cjs` verifies exact duration boundaries, continuous episodes, reset conditions, mute/rearm, stale gaps, reconnection and input validation against the actual alarm engine. `node tools/check_ble_monitor.cjs` verifies the real page script: colours, commands, history, visible alarms, sound scheduling, mute and settings using protocol/audio fixtures. `tools/inspect_ble.py` can test the actual board over BLE using the optional Python `bleak==2.0.0` package. Android/iPhone audible behavior and physical LED colour require hands-on validation on those devices.
 
 Initial two-class hardware verification on 9 November 2026: the uploaded board advertised `HiJack-Detect`, accepted a real BLE connection and START command, sent 21 notifications during the test with valid blue `[0,0,255]` classification, and accepted STOP with an off `[0,0,0]` state. That earlier model measured 256 microseconds in the observed packet. The current four-state model's timing and hardware checks are documented in [the four-state report](../training/FOUR_STATE.md). The existing sensor stream remained fresh with zero I2C errors. The sampler task has an 8 kB stack; this resolved a stack-overflow reset found during initial combined Wi-Fi/BLE testing. Physical breathing transitions and phone browsers still need hands-on checks.
 
-The four-state model is now implemented; see [training/evaluation](../training/FOUR_STATE.md). The earlier two-state milestone and its measured results are preserved in the repository. Breathing duration alarms and the full bedside-monitor grading requirements remain pending. Refresh the monitor page after updating firmware so it recognizes the added breathing state IDs.
+The four-state model and required BLE duration/loss alarms are implemented; see [training/evaluation](../training/FOUR_STATE.md). The earlier two-state milestone and its measured results remain in the repository. Refresh the monitor after an update. The alarm feature is entirely in the mobile page: it does not require reflashing the ESP32 or changing the model, calibration, Wi-Fi dashboard or CSV recorder.

@@ -33,7 +33,23 @@ The local board address works only while connected to its Wi-Fi. The BLE monitor
 4. Press **Start detection**. Maintain the activity for at least four seconds while the first window fills. For breathing, keep the sensor steadily against the chest in the same placement used during recording.
 5. The page and RGB LED show the same classified state. **Stop** stops classification and turns off the RGB LED. **Disconnect** closes BLE; detection continues on the board until stopped or reset.
 
-Keep the monitor in the foreground. Notifications arrive on state changes and as a 200 ms heartbeat. After 1.5 seconds without updates, the screen becomes neutral and reports the interruption. History contains the latest 20 state changes and clears on reload. Refresh the monitor after firmware/page updates.
+Keep the monitor in the foreground. Notifications arrive on state changes and as a 200 ms heartbeat. After 1.5 seconds without fresh updates, the screen becomes neutral and raises a connection alarm. History contains the latest 20 state/alarm events and clears on reload. Refresh the monitor after firmware/page updates.
+
+### BLE alarms and recommended limits
+
+| Alarm | Default trigger |
+| --- | --- |
+| Fast breathing | **10 seconds** continuously classified as `fast_breathing` |
+| Sensor not attached | **10 seconds** continuously classified as `not_attached` |
+| Connection lost | Immediately on an unexpected BLE disconnect, or after **1.5 seconds** without fresh notifications |
+
+The 10-second limits are lab-demo settings, not medical thresholds. They avoid alarming on a brief transition while keeping a demonstration short. The timer starts when the board reports the classified state, after windowing/smoothing; it does not measure time from the physical onset of an activity.
+
+**Alarm settings** accepts whole-second limits from **1 to 300**. Press **Apply limits**; settings are saved in that browser when local storage is available. Each state has its own continuous episode: leaving it, stopping detection, a sensor fault or losing reliable BLE updates resets duration tracking. Reconnection starts a fresh episode. Warm-up does not count.
+
+An active alarm shows a prominent banner and repeats a short two-tone sound every two seconds. Connect/Start enables browser audio; **Enable / test sound** lets the user check it. Keep the page open and the phone's media volume audible. **Mute this alarm** silences the current episode without hiding the warning; a new alarm episode sounds again. Alarms clear when their condition ends. The background continues to match the board LED while valid classifications arrive.
+
+For a quick demonstration, temporarily set both limits to 3 seconds, trigger each state, then restore 10 seconds. To demonstrate connection loss, turn off the board or Bluetooth. The page's **Disconnect** button deliberately ends the session without alarming. Browser suspension or phone settings can prevent audible alerts; this remains a foreground coursework monitor.
 
 ### Open the Wi-Fi dashboard
 
@@ -197,11 +213,12 @@ From the repository root:
 ```powershell
 node tools/check_dashboard.cjs
 node tools/check_ble_monitor.cjs
+node tools/check_alarms.cjs
 .\.venv\Scripts\python.exe tools/inspect_device.py COM3
 .\.venv\Scripts\python.exe tools/inspect_detection.py
 ```
 
-The first two commands check browser scripts without hardware. The diagnostic scripts inspect the connected board; `inspect_detection.py` temporarily starts detection and stops it afterwards. These are development tools, not part of the standalone demonstration. Native tests in [check_four_state.cpp](tools/check_four_state.cpp) and [check_recorder.cpp](tools/check_recorder.cpp) can be built with a C++17 compiler and `firmware/include` on the include path, then run from the repository root. [inspect_ble.py](tools/inspect_ble.py) provides an optional real BLE test and requires `bleak==2.0.0`.
+The first three commands check browser scripts and alarm timing without hardware. The diagnostic scripts inspect the connected board; `inspect_detection.py` temporarily starts detection and stops it afterwards. These are development tools, not part of the standalone demonstration. Native tests in [check_four_state.cpp](tools/check_four_state.cpp) and [check_recorder.cpp](tools/check_recorder.cpp) can be built with a C++17 compiler and `firmware/include` on the include path, then run from the repository root. [inspect_ble.py](tools/inspect_ble.py) provides an optional real BLE test and requires `bleak==2.0.0`.
 
 | Problem | Check |
 | --- | --- |
@@ -220,12 +237,12 @@ The first two commands check browser scripts without hardware. The diagnostic sc
 | --- | --- |
 | Movement versus shaking | On-board classifier; blue/magenta LED and BLE screen |
 | Breathing | Four-state MLP; green/red breathing states and class probabilities |
-| BLE monitor | HTTPS page, Start/Stop, matching colour, timestamped history, connection-loss/stale indication |
+| BLE monitor | HTTPS page, Start/Stop, matching colour, timestamped history, configurable fast-breathing/not-attached duration alarms and connection-loss alarms |
 | Board web page | Wi-Fi hotspot, measured signals, prediction and four class probabilities |
 | Own extension | Calibrated 3D orientation, acceleration visualization and confirmed CSV recording |
 | Documentation | Team, wiring/photo, connection instructions, build/flash, collection/training, results and AI use |
 
-**Remaining BLE requirement:** duration alarms for prolonged fast breathing and prolonged `not_attached` are **not implemented**. Connection loss is indicated visually; there is no audible alarm. These must not be claimed as completed bedside-monitor functionality.
+The required duration and connection-loss alarms are implemented in the BLE page, with visible warnings and browser-generated sound. Their timing, reset, mute and reconnection behavior are covered by automated tests. Phone-specific audible behavior and the complete live demonstration must still be checked on the intended devices.
 
 Before submission, verify access for GitHub user **`tomasvicar`**, the minimum of **three intermediate commits pushed during the lab**, and live demonstration of each completed part to the teacher. Git history records implementation milestones; repository access and live demonstrations must be checked separately.
 

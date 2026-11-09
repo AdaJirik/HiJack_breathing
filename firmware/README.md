@@ -1,6 +1,6 @@
 # Motion extension: ESP32-hosted 3D orientation
 
-This firmware implements the motion extension, CSV recording and a trained four-state movement/breathing detector with BLE control. Breathing duration alarms remain pending. The embedded motion page needs no internet, CDN, external JavaScript library or separate filesystem upload.
+This firmware implements the motion extension, CSV recording and a trained four-state movement/breathing detector with BLE control. The separate BLE page implements duration and connection-loss alarms using the existing notifications. The embedded motion page needs no internet, CDN, external JavaScript library or separate filesystem upload.
 
 ## Movement detection over BLE
 
