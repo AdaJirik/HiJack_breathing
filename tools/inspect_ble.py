@@ -14,19 +14,19 @@ def decode(data):
                 sequence=struct.unpack_from("<I",data,8)[0],inference_us=struct.unpack_from("<I",data,16)[0])
 
 async def main():
-    device=await BleakScanner.find_device_by_filter(lambda device,adv: (adv.local_name or "").startswith("HiJack-Detect"),timeout=10)
+    device=await BleakScanner.find_device_by_filter(lambda device,adv: (adv.local_name or device.name or "").startswith("HiJack-Detect") or SERVICE in adv.service_uuids,timeout=15)
     if not device:raise RuntimeError("HiJack-Detect not found; ensure board is on and no phone is connected")
-    print("Found:",device.name,flush=True)
+    print("Found:",device.name or "HiJack BLE service (name not yet cached)",flush=True)
     packets=[]
     async with BleakClient(device,timeout=15) as client:
         assert client.services.get_service(SERVICE)
         await client.start_notify(STATE,lambda _,data:packets.append(decode(data)))
         await client.write_gatt_char(CONTROL,b"START",response=True)
-        await asyncio.sleep(4)
-        valid=[p for p in packets if p["state"] in (2,3)]
+        await asyncio.sleep(6)
+        valid=[p for p in packets if p["state"] in (2,3,5,6)]
         assert valid,"No live classification received"
         for p in valid:
-            assert p["rgb"]==([0,0,255] if p["state"]==2 else [255,0,255])
+            assert p["rgb"]=={2:[0,0,255],3:[255,0,255],5:[0,255,0],6:[255,0,0]}[p["state"]]
         print("Live packet:",valid[-1],"notifications:",len(packets),flush=True)
         await client.write_gatt_char(CONTROL,b"STOP",response=True)
         await asyncio.sleep(.8)

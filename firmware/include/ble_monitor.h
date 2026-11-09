@@ -37,7 +37,9 @@ void setupBleMonitor() {
   auto control=service->createCharacteristic(BLE_CONTROL_UUID,BLECharacteristic::PROPERTY_WRITE);
   control->setCallbacks(new MonitorControlCallbacks());
   uint8_t initial[20]={1};bleState->setValue(initial,sizeof(initial));
-  service->start();auto advertising=BLEDevice::getAdvertising();advertising->addServiceUUID(BLE_SERVICE_UUID);advertising->setScanResponse(true);BLEDevice::startAdvertising();
+  service->start();auto advertising=BLEDevice::getAdvertising();advertising->addServiceUUID(BLE_SERVICE_UUID);advertising->setScanResponse(true);
+  BLEAdvertisementData response;response.setName("HiJack-Detect");advertising->setScanResponseData(response);
+  BLEDevice::startAdvertising();
 }
 void updateBleMonitor() {
   static uint8_t previousState=255;static uint32_t lastNotification=0,sequence=0;

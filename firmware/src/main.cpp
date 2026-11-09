@@ -11,6 +11,8 @@ constexpr float G=9.80665f, DEG=0.01745329252f;
 WebServer server(80);
 portMUX_TYPE mux=portMUX_INITIALIZER_UNLOCKED;
 #include "ble_monitor.h"
+#include "four_state.h"
+static FourStateInput classifierInput;
 struct Snapshot {
   Quat q; Vec a,gyro,linear;
   uint32_t seq=0,stamp=0,errors=0;
@@ -129,7 +131,6 @@ void sampling(void*) {
   float accelScale=1;
   bool initialized=false,calibrated=false;
   int status=0;CalibrationWindow calibration;
-  static MovementDetector detector;
   TickType_t wake=xTaskGetTickCount();uint32_t previous=micros(),retry=0;
   while(true) {
     vTaskDelayUntil(&wake,pdMS_TO_TICKS(10));
@@ -137,8 +138,7 @@ void sampling(void*) {
     Vec a,g;
     if(!address || !readSample(a,g)) {
       bool enabled;portENTER_CRITICAL(&mux);enabled=detectionRequested;portEXIT_CRITICAL(&mux);
-      detector.add(enabled,false,{},{});
-      portENTER_CRITICAL(&mux);movement=detector.result;portEXIT_CRITICAL(&mux);
+      portENTER_CRITICAL(&mux);classifierInput.feed(enabled,false,{},{});portEXIT_CRITICAL(&mux);
       portENTER_CRITICAL(&mux);recorder.capture(micros(),false,{},{},0);latest.ok=false;latest.calibrated=false;if(address)latest.errors++;latest.calibration=0;latest.progress=0;portEXIT_CRITICAL(&mux);
       if(address) {address=0;status=0;calibration.reset();portENTER_CRITICAL(&mux);requested=false;portEXIT_CRITICAL(&mux);}
       previous=micros();continue;
@@ -165,15 +165,29 @@ void sampling(void*) {
     Vec linear=reference.inverse().rotate(world);
     filtered=filtered*0.8f+linear*0.2f;
     bool enabled;portENTER_CRITICAL(&mux);enabled=detectionRequested;portEXIT_CRITICAL(&mux);
-    uint32_t inferenceStart=micros();
-    if(detector.add(enabled,true,a,g*(1/DEG)))detector.result.inferenceUs=micros()-inferenceStart;
     portENTER_CRITICAL(&mux);
-    movement=detector.result;
+    classifierInput.feed(enabled,true,a,g*(1/DEG));
     latest.q=reference.inverse()*orientation;latest.a=a;latest.gyro=(g-bias)*(1/DEG);latest.linear=filtered;
     latest.ok=true;latest.calibrated=calibrated;latest.stamp=millis();latest.seq++;
     latest.calibration=status;latest.progress=status==1?calibration.progress():0;
     latest.accelNoise=calibration.accelRms();latest.gyroNoise=calibration.gyroRms()/DEG;latest.accelScale=accelScale;
     recorder.capture(now,true,a,g*(1/DEG),latest.seq);
+    portEXIT_CRITICAL(&mux);
+  }
+}
+void classification(void*) {
+  static FourStateDetector processor;uint32_t generation=UINT32_MAX,lastJob=0;
+  while(true) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+    bool ready=false,enabled,valid;uint32_t currentGeneration;
+    portENTER_CRITICAL(&mux);
+    enabled=classifierInput.enabled;valid=classifierInput.valid;currentGeneration=classifierInput.generation;
+    if(generation!=currentGeneration){generation=currentGeneration;processor.reset(enabled);if(enabled&&!valid)processor.result.state=MOVEMENT_FAULT;lastJob=classifierInput.job;}
+    if(enabled&&valid&&classifierInput.count==FOUR_WINDOW&&classifierInput.job!=lastJob){classifierInput.copyTo(processor.samples);lastJob=classifierInput.job;ready=true;}
+    portEXIT_CRITICAL(&mux);
+    if(ready){uint32_t start=micros();processor.classify();processor.result.inferenceUs=micros()-start;}
+    portENTER_CRITICAL(&mux);
+    if(classifierInput.generation==currentGeneration)movement=processor.result;
     portEXIT_CRITICAL(&mux);
   }
 }
@@ -184,12 +198,14 @@ String json() {
     s.ok?"true":"false",s.calibrated?"true":"false",s.calibration,s.progress,(unsigned long)s.seq,(unsigned long)(millis()-s.stamp),
     s.q.w,s.q.x,s.q.y,s.q.z,s.a.x,s.a.y,s.a.z,s.gyro.x,s.gyro.y,s.gyro.z,s.linear.x,s.linear.y,s.linear.z,(unsigned long)s.errors,s.accelNoise,s.gyroNoise,s.accelScale);
   MovementResult m;portENTER_CRITICAL(&mux);m=movement;portEXIT_CRITICAL(&mux);
-  char extra[220];snprintf(extra,sizeof(extra),",\"detection\":{\"running\":%s,\"state\":%d,\"p_shaking\":%.5f,\"inference_us\":%lu,\"led_pin\":%d}",m.running?"true":"false",m.state,m.probability,(unsigned long)m.inferenceUs,MOTION_RGB_PIN);
+  bool connected;portENTER_CRITICAL(&mux);connected=bleConnected;portEXIT_CRITICAL(&mux);
+  char extra[500];snprintf(extra,sizeof(extra),",\"detection\":{\"running\":%s,\"state\":%d,\"p_shaking\":%.5f,\"probabilities\":[%.5f,%.5f,%.5f,%.5f],\"window_ms\":4000,\"model\":\"%s\",\"inference_us\":%lu,\"led_pin\":%d,\"ble_connected\":%s,\"free_heap\":%u}",m.running?"true":"false",m.state,m.probability,m.probabilities[0],m.probabilities[1],m.probabilities[2],m.probabilities[3],FOUR_MODEL_VERSION,(unsigned long)m.inferenceUs,MOTION_RGB_PIN,connected?"true":"false",ESP.getFreeHeap());
   String result(b);result.remove(result.length()-1);result+=extra;result+=",\"recording\":";result+=recordJson();result+='}';return result;
 }
 void setup() {
   Serial.begin(115200);
   xTaskCreatePinnedToCore(sampling,"imu",8192,nullptr,2,nullptr,1);
+  xTaskCreatePinnedToCore(classification,"classifier",6144,nullptr,1,nullptr,0);
   WiFi.mode(WIFI_AP);WiFi.softAP("HiJack-Motion","hijack32");WiFi.setSleep(false);
   setupBleMonitor();
   server.on("/",HTTP_GET,[]{server.send_P(200,"text/html; charset=utf-8",WEB_UI);});

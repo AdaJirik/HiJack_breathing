@@ -44,6 +44,10 @@ clock+=8001; assert.equal(run('traceSamples(performance.now()).length'),0, 'Old 
 const rotated = run('rotate([1,0,0],[Math.SQRT1_2,0,0,Math.SQRT1_2])');
 assert.ok(Math.abs(rotated[0]) < 1e-6 && Math.abs(rotated[1] - 1) < 1e-6);
 assert.ok(run('project([0,0,1],800,500)[1] < project([0,0,0],800,500)[1]'), 'Positive Z should point up on screen');
+send({detection:{state:6,probabilities:[.1,.2,.3,.4]}});
+assert.equal(elements.get('classifierState').textContent,'Fast breathing');
+assert.equal(elements.get('classValue3').textContent,'40.0%');
+assert.equal(elements.get('classFill2').style.width,'30%');
 console.log('Dashboard: raw trace before calibration, linear toggle, per-axis scaling, calibration messages, rendering, sensor faults and stale data checks passed.');
 
 (async()=>{

@@ -1,0 +1,48 @@
+{
+  "train": [
+    "data_3_not_attached.csv",
+    "data_2_not_attached.csv",
+    "data_4_not_attached.csv",
+    "data_9_not_attached.csv",
+    "data_1_not_attached.csv",
+    "data_8_not_attached.csv",
+    "data_16_shaking.csv",
+    "data_20_shaking.csv",
+    "data_18_shaking.csv",
+    "data_14_shaking.csv",
+    "data_11_shaking.csv",
+    "data_12_shaking.csv",
+    "data_28_calm_breathing.csv",
+    "data_23_calm_breathing.csv",
+    "data_24_calm_breathing.csv",
+    "data_26_calm_breathing.csv",
+    "data_27_calm_breathing.csv",
+    "data_22_calm_breathing.csv",
+    "data_40_fast_breathing.csv",
+    "data_36_fast_breathing.csv",
+    "data_39_fast_breathing.csv",
+    "data_35_fast_breathing.csv",
+    "data_31_fast_breathing.csv",
+    "data_34_fast_breathing.csv"
+  ],
+  "validation": [
+    "data_10_not_attached.csv",
+    "data_7_not_attached.csv",
+    "data_13_shaking.csv",
+    "data_17_shaking.csv",
+    "data_29_calm_breathing.csv",
+    "data_25_calm_breathing.csv",
+    "data_33_fast_breathing.csv",
+    "data_38_fast_breathing.csv"
+  ],
+  "test": [
+    "data_5_not_attached.csv",
+    "data_6_not_attached.csv",
+    "data_15_shaking.csv",
+    "data_19_shaking.csv",
+    "data_21_calm_breathing.csv",
+    "data_30_calm_breathing.csv",
+    "data_37_fast_breathing.csv",
+    "data_32_fast_breathing.csv"
+  ]
+}

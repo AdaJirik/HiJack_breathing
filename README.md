@@ -2,11 +2,11 @@
 
 **Team:** Kateřina Hoffmannová & Adrian Jiřík
 
-**Status:** motion dashboard, calibration and CSV recorder are implemented. A two-class movement model is trained from `Data/`, with ESP32 inference and a BLE mobile monitor. Calm/fast breathing detection remains pending. See [training and results](training/README.md), [mobile monitor](monitor/README.md) and [firmware instructions](firmware/README.md).
+**Status:** motion dashboard, calibration and CSV recorder are implemented. The current model recognizes all four classes from `Data/`, with ESP32 inference and the BLE mobile monitor. See [four-state training and results](training/FOUR_STATE.md), [mobile monitor](monitor/README.md) and [firmware instructions](firmware/README.md). The earlier two-class model remains available as a reproducible milestone.
 
-**Mobile BLE monitor:** <https://adajirik.github.io/HiJack_breathing/>. Android: Chrome; iPhone: Bluefy. Connect to `HiJack-Detect`, then press Start detection. Blue means not attached; magenta means shaking. The existing Wi-Fi dashboard remains at <http://192.168.4.1/>.
+**Mobile BLE monitor:** <https://adajirik.github.io/HiJack_breathing/>. Android: Chrome; iPhone: Bluefy. Connect to `HiJack-Detect`, then press Start detection. Blue means not attached, magenta shaking, green calm breathing and red fast breathing. The existing Wi-Fi dashboard remains at <http://192.168.4.1/>. Allow four seconds for the first classification.
 
-**Current evaluation:** 75% held-out window accuracy and 0.733 macro-F1 on four complete test recordings. One shaking style is missed; see the saved results and limitations before relying on the classifier.
+**Current evaluation:** 100% held-out window accuracy and 1.0 macro-F1 on 104 overlapping windows from eight complete test recordings. This small test does not establish new-person or remounting performance; see the saved results and limitations. The prior two-class milestone scored 75%.
 
 **Draft date:** 9 November 2026.
 

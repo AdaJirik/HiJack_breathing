@@ -2,7 +2,7 @@
 #include "fusion.h"
 #include "movement_model.h"
 
-enum MovementState : uint8_t { MOVEMENT_STOPPED=0,MOVEMENT_WARMING=1,MOVEMENT_NOT_ATTACHED=2,MOVEMENT_SHAKING=3,MOVEMENT_FAULT=4 };
+enum MovementState : uint8_t { MOVEMENT_STOPPED=0,MOVEMENT_WARMING=1,MOVEMENT_NOT_ATTACHED=2,MOVEMENT_SHAKING=3,MOVEMENT_FAULT=4,MOVEMENT_CALM_BREATHING=5,MOVEMENT_FAST_BREATHING=6 };
 struct MovementSample { Vec a,g; };
 inline void movementFeatures(const MovementSample* samples,float* out) {
   Vec ma,mg;float magnitudeMean=0;
@@ -19,7 +19,7 @@ inline void movementFeatures(const MovementSample* samples,float* out) {
   float values[]={av/100,gv/100,mv/100,astep/99,gstep/99,grms/100};
   for(int i=0;i<6;i++)out[i]=log1pf(sqrtf(fmaxf(0,values[i])));
 }
-struct MovementResult { MovementState state=MOVEMENT_STOPPED;bool running=false;float probability=.5f;uint32_t inferenceUs=0; };
+struct MovementResult { MovementState state=MOVEMENT_STOPPED;bool running=false;float probability=.5f;uint32_t inferenceUs=0;float probabilities[4]={.5f,.5f,0,0}; };
 struct MovementDetector {
   MovementSample samples[100];int count=0,since=0;bool hasPrediction=false;
   MovementResult result;
@@ -41,6 +41,7 @@ struct MovementDetector {
   }
 };
 inline void movementColor(MovementState state,uint8_t& r,uint8_t& g,uint8_t& b) {
-  r=state==MOVEMENT_SHAKING?255:0;g=0;
+  r=(state==MOVEMENT_SHAKING||state==MOVEMENT_FAST_BREATHING)?255:0;
+  g=state==MOVEMENT_CALM_BREATHING?255:0;
   b=(state==MOVEMENT_SHAKING||state==MOVEMENT_NOT_ATTACHED)?255:0;
 }

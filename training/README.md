@@ -1,5 +1,7 @@
 # Two-class movement model
 
+This documents the preserved two-class milestone. The active firmware now uses the [four-state model](FOUR_STATE.md), which adds calm and fast breathing.
+
 Train and reproduce from the repository root:
 
 ```powershell

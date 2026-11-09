@@ -1,0 +1,170 @@
+{
+  "labels": [
+    "not_attached",
+    "shaking",
+    "calm_breathing",
+    "fast_breathing"
+  ],
+  "selected": "mlp_16",
+  "seed": 42,
+  "window_samples": 400,
+  "stride_samples": 50,
+  "features": [
+    "acc_std",
+    "gyro_std",
+    "acc_norm_std",
+    "acc_step",
+    "gyro_step",
+    "gyro_rms",
+    "std_ax_m_s2",
+    "std_ay_m_s2",
+    "std_az_m_s2",
+    "std_gx_deg_s",
+    "std_gy_deg_s",
+    "std_gz_deg_s",
+    "log_acc_power_0.15Hz",
+    "log_acc_power_0.25Hz",
+    "log_acc_power_0.4Hz",
+    "log_acc_power_0.6Hz",
+    "log_acc_power_0.9Hz",
+    "log_acc_power_1.2Hz",
+    "log_gyro_power_0.15Hz",
+    "log_gyro_power_0.25Hz",
+    "log_gyro_power_0.4Hz",
+    "log_gyro_power_0.6Hz",
+    "log_gyro_power_0.9Hz",
+    "log_gyro_power_1.2Hz"
+  ],
+  "protocol": "Complete recordings split before windowing; grouped development CV selects model; scaler fitted within folds; final fit excludes all test recordings.",
+  "development_group_cv_macro_f1": {
+    "logistic_regression": [
+      0.9076704545454546,
+      0.8666666666666667,
+      1.0,
+      0.8102961231248782
+    ],
+    "mlp_16": [
+      0.8109766294577533,
+      1.0,
+      1.0,
+      0.8196428571428571
+    ],
+    "mlp_24": [
+      0.8109766294577533,
+      1.0,
+      1.0,
+      0.8196428571428571
+    ]
+  },
+  "test_accuracy": 1.0,
+  "test_macro_f1": 1.0,
+  "test_windows": 104,
+  "test_confusion_matrix": [
+    [
+      26,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      26,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      26,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      26
+    ]
+  ],
+  "test_report": {
+    "not_attached": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 26.0
+    },
+    "shaking": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 26.0
+    },
+    "calm_breathing": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 26.0
+    },
+    "fast_breathing": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 26.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 104.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 104.0
+    }
+  },
+  "recording_results": [
+    {
+      "file": "data_5_not_attached.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_6_not_attached.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_15_shaking.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_19_shaking.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_21_calm_breathing.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_30_calm_breathing.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_37_fast_breathing.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_32_fast_breathing.csv",
+      "windows": 13,
+      "accuracy": 1.0
+    }
+  ],
+  "limitations": "40 ten-second recordings; overlapping windows are not independent trials. No cross-person or remounting validation, clinical thresholds or unknown-class rejection. 4-second windows increase detection latency; live transitions still require hardware validation."
+}
