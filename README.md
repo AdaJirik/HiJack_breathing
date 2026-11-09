@@ -1,8 +1,8 @@
 # HiJack breathing — project draft
 
-**Team:** Kateřina Hoffmannová & Adrian Jiřík (from the repository description; confirm preferred spelling before submission).
+**Team:** Kateřina Hoffmannová & Adrian Jiřík
 
-**Status:** planning only; no firmware, dataset, model or monitoring page implemented yet.
+**Status:** motion-extension firmware, its embedded Wi-Fi dashboard and a labelled 10-second CSV recorder are implemented. Breathing classification, collected dataset, trained model and BLE monitoring page remain planned. See [motion firmware and recording instructions](firmware/README.md).
 
 **Draft date:** 9 November 2026.
 
@@ -140,11 +140,11 @@ The board's HTTP page and the HTTPS BLE page have different jobs. The board's pl
 
 **Monitoring page URL:** pending deployment.
 
-## 7. Proposed own extension
+## 7. Own extension: live 3D orientation
 
-Add a **breathing-rate estimate in breaths per minute**, shown alongside calm/fast breathing. Reuse the breathing signal and compare peak-interval and spectral estimates. Use a longer rolling window, initially 20–30 seconds, if the classification window is too short. Hide the estimate during detached, shaking, startup or poor-quality signals.
+The selected extension is a **rotating 3D sensor model**, served by the ESP32 over its own Wi-Fi. It includes horizontal stationary calibration, roll/pitch/yaw, gravity-compensated acceleration arrows and signed values, a movement intensity indicator and an acceleration history. The BLE monitor is reserved for the breathing task. The earlier breathing-rate idea is deferred.
 
-Validate against counted breaths over timed recordings or a comfortable paced reference, and report absolute error and latency for different window lengths. Demonstrate what this adds beyond classification. Prioritize the core four states and required displays before this extension.
+The sensor can estimate orientation and acceleration, but cannot reliably track position or travel distance. Heading drifts without a magnetometer. Calibration resets heading and estimates stationary gyro bias. See [firmware/README.md](firmware/README.md) for setup, limitations and the physical validation checklist. The final board-served page must also gain the required breathing signal and class probability display.
 
 ## 8. Four-hour lab plan
 
@@ -162,7 +162,7 @@ Schedule teacher demonstrations as soon as a part works. If breathing is unrelia
 
 ## 9. Proposed repository structure
 
-Only this planning README is created initially. Add the implementation incrementally:
+The motion firmware and diagnostic tools now exist. The remaining directories below are planned and should be added incrementally:
 
 ```text
 firmware/              # ESP32 project, sampler, features, model, LED, BLE, HTTP
@@ -195,4 +195,4 @@ Exclude build output, local environments and credentials from version control. D
 
 ## 11. AI assistance and current limitations
 
-Codex was used to read the assignment and prepare this initial project plan and Git setup. Update this section with any later assistance in coding, training or documentation. No hardware operation, classification accuracy, timing, BLE behavior or website deployment has been validated yet. This is a coursework prototype, not a clinical monitor.
+Codex was used to read the assignment, prepare the initial plan and Git setup, and implement the motion firmware, embedded visualization, calibration and diagnostic tools. See the firmware instructions for validation details. Breathing classification accuracy and BLE behavior have not been validated. This is a coursework prototype, not a clinical monitor.
