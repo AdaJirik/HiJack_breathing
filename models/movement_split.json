@@ -1,0 +1,28 @@
+{
+  "train": [
+    "data_3_not_attached.csv",
+    "data_2_not_attached.csv",
+    "data_4_not_attached.csv",
+    "data_9_not_attached.csv",
+    "data_1_not_attached.csv",
+    "data_8_not_attached.csv",
+    "data_16_shaking.csv",
+    "data_20_shaking.csv",
+    "data_18_shaking.csv",
+    "data_14_shaking.csv",
+    "data_11_shaking.csv",
+    "data_12_shaking.csv"
+  ],
+  "validation": [
+    "data_10_not_attached.csv",
+    "data_7_not_attached.csv",
+    "data_13_shaking.csv",
+    "data_17_shaking.csv"
+  ],
+  "test": [
+    "data_5_not_attached.csv",
+    "data_6_not_attached.csv",
+    "data_15_shaking.csv",
+    "data_19_shaking.csv"
+  ]
+}

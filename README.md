@@ -2,7 +2,11 @@
 
 **Team:** Kateřina Hoffmannová & Adrian Jiřík
 
-**Status:** motion-extension firmware, its embedded Wi-Fi dashboard and a labelled 10-second CSV recorder are implemented. Breathing classification, collected dataset, trained model and BLE monitoring page remain planned. See [motion firmware and recording instructions](firmware/README.md).
+**Status:** motion dashboard, calibration and CSV recorder are implemented. A two-class movement model is trained from `Data/`, with ESP32 inference and a BLE mobile monitor. Calm/fast breathing detection remains pending. See [training and results](training/README.md), [mobile monitor](monitor/README.md) and [firmware instructions](firmware/README.md).
+
+**Mobile BLE monitor:** <https://adajirik.github.io/HiJack_breathing/>. Android: Chrome; iPhone: Bluefy. Connect to `HiJack-Detect`, then press Start detection. Blue means not attached; magenta means shaking. The existing Wi-Fi dashboard remains at <http://192.168.4.1/>.
+
+**Current evaluation:** 75% held-out window accuracy and 0.733 macro-F1 on four complete test recordings. One shaking style is missed; see the saved results and limitations before relying on the classifier.
 
 **Draft date:** 9 November 2026.
 
@@ -138,7 +142,7 @@ Smooth decisions over approximately two seconds and tune on validation data. Dis
 
 The board's HTTP page and the HTTPS BLE page have different jobs. The board's plain HTTP page cannot use Web Bluetooth. Test simultaneous Wi-Fi and BLE operation; use a BLE-capable laptop for the monitor if joining the ESP32 hotspot leaves a phone unable to load GitHub Pages.
 
-**Monitoring page URL:** pending deployment.
+**Monitoring page URL:** <https://adajirik.github.io/HiJack_breathing/> (two-state movement milestone; breathing alarms remain pending).
 
 ## 7. Own extension: live 3D orientation
 

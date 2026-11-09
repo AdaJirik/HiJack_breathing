@@ -1,0 +1,94 @@
+{
+  "seed": 42,
+  "protocol": "Split whole recordings before overlapping windows; compare initial validation and select model with four-fold recording-group CV over train+validation; refit development data; evaluate test recordings excluded from all selection fits.",
+  "selection_macro_f1": {
+    "logistic_regression": 0.8187299792726588,
+    "mlp_16": 0.9321225463217758,
+    "decision_stump": 0.8407485380116959
+  },
+  "selected": "logistic_regression",
+  "window_samples": 100,
+  "stride_samples": 25,
+  "development_group_cv_macro_f1": {
+    "logistic_regression": [
+      0.9568336930525578,
+      1.0,
+      0.8906134515890614,
+      0.8261196484797217
+    ],
+    "mlp_16": [
+      0.9651846624323688,
+      0.8651299919592603,
+      0.8975967526177406,
+      0.8623511904761905
+    ],
+    "decision_stump": [
+      0.7905801495856074,
+      1.0,
+      0.8623511904761905,
+      0.979721397579356
+    ]
+  },
+  "test_windows": 148,
+  "test_macro_f1": 0.7333333333333334,
+  "test_confusion_matrix": [
+    [
+      74,
+      0
+    ],
+    [
+      37,
+      37
+    ]
+  ],
+  "test_report": {
+    "not_attached": {
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "f1-score": 0.8,
+      "support": 74.0
+    },
+    "shaking": {
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1-score": 0.6666666666666666,
+      "support": 74.0
+    },
+    "accuracy": 0.75,
+    "macro avg": {
+      "precision": 0.8333333333333333,
+      "recall": 0.75,
+      "f1-score": 0.7333333333333334,
+      "support": 148.0
+    },
+    "weighted avg": {
+      "precision": 0.8333333333333333,
+      "recall": 0.75,
+      "f1-score": 0.7333333333333333,
+      "support": 148.0
+    }
+  },
+  "recording_results": [
+    {
+      "file": "data_5_not_attached.csv",
+      "windows": 37,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_6_not_attached.csv",
+      "windows": 37,
+      "accuracy": 1.0
+    },
+    {
+      "file": "data_15_shaking.csv",
+      "windows": 37,
+      "accuracy": 0.0
+    },
+    {
+      "file": "data_19_shaking.csv",
+      "windows": 37,
+      "accuracy": 1.0
+    }
+  ],
+  "limitations": "20 short recordings from one collection session; no verified subject identities, no cross-person test, and no unseen-activity rejection. Breathing files deliberately excluded. Window accuracy is not live transition accuracy."
+}

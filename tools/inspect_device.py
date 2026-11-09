@@ -2,8 +2,10 @@
 import argparse
 import json
 import time
+import sys
 
 import serial
+sys.stdout.reconfigure(encoding="utf-8",errors="replace")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("port", nargs="?", default="COM3")
@@ -28,6 +30,8 @@ with serial.Serial(port=None, baudrate=115200, timeout=0.3) as link:
         line = link.readline().decode("utf-8", errors="replace").strip()
         if line.startswith("{"):
             state = json.loads(line)
+            if not state.get("ok") and state.get("seq",0)==0:
+                continue  # Sensor setup retries start after the first second.
             if args.calibrate and state.get("calibration") in (0, 1):
                 progress = state.get("progress", 0)
                 if progress != previous_progress:

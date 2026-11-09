@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><title>HiJack · Movement detector</title><link rel="stylesheet" href="style.css"></head>
+<body><main><header><strong>HiJack <span>/ movement</span></strong><span id="connection" role="status">Disconnected</span></header>
+<section class="reading" aria-live="polite"><p class="eyebrow">LIVE FROM YOUR ESP32</p><h1 id="state">Ready to connect</h1><p id="detail">Connect over Bluetooth, then start detection.</p><div id="signal" class="signal" aria-hidden="true"></div></section>
+<section class="controls"><button id="connect">Connect ESP32</button><button id="start" disabled>Start detection</button><button id="stop" class="secondary" disabled>Stop</button><button id="disconnect" class="secondary" disabled>Disconnect</button><p id="message" role="status">Keep the page open while monitoring.</p></section>
+<section class="history"><div class="history-title"><h2>Movement history</h2><span>Latest changes</span></div><ol id="history"><li>No measurements yet.</li></ol></section>
+<footer><p>Blue = not attached · Magenta = shaking</p><p>The ESP32 performs the classification. Screen colour follows its LED state.</p><p id="support">Android: Chrome. iPhone: open this page in <a href="https://apps.apple.com/app/id1492822055">Bluefy</a>. Safari and iPhone Chrome cannot connect through Web Bluetooth.</p></footer>
+</main><script src="app.js"></script></body></html>

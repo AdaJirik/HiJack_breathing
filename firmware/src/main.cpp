@@ -10,6 +10,7 @@
 constexpr float G=9.80665f, DEG=0.01745329252f;
 WebServer server(80);
 portMUX_TYPE mux=portMUX_INITIALIZER_UNLOCKED;
+#include "ble_monitor.h"
 struct Snapshot {
   Quat q; Vec a,gyro,linear;
   uint32_t seq=0,stamp=0,errors=0;
@@ -128,12 +129,16 @@ void sampling(void*) {
   float accelScale=1;
   bool initialized=false,calibrated=false;
   int status=0;CalibrationWindow calibration;
+  static MovementDetector detector;
   TickType_t wake=xTaskGetTickCount();uint32_t previous=micros(),retry=0;
   while(true) {
     vTaskDelayUntil(&wake,pdMS_TO_TICKS(10));
     if(!address && millis()-retry>=1000) {retry=millis();initSensor();initialized=false;calibrated=false;}
     Vec a,g;
     if(!address || !readSample(a,g)) {
+      bool enabled;portENTER_CRITICAL(&mux);enabled=detectionRequested;portEXIT_CRITICAL(&mux);
+      detector.add(enabled,false,{},{});
+      portENTER_CRITICAL(&mux);movement=detector.result;portEXIT_CRITICAL(&mux);
       portENTER_CRITICAL(&mux);recorder.capture(micros(),false,{},{},0);latest.ok=false;latest.calibrated=false;if(address)latest.errors++;latest.calibration=0;latest.progress=0;portEXIT_CRITICAL(&mux);
       if(address) {address=0;status=0;calibration.reset();portENTER_CRITICAL(&mux);requested=false;portEXIT_CRITICAL(&mux);}
       previous=micros();continue;
@@ -159,7 +164,11 @@ void sampling(void*) {
     Vec world=orientation.rotate(corrected)-Vec{0,0,G};
     Vec linear=reference.inverse().rotate(world);
     filtered=filtered*0.8f+linear*0.2f;
+    bool enabled;portENTER_CRITICAL(&mux);enabled=detectionRequested;portEXIT_CRITICAL(&mux);
+    uint32_t inferenceStart=micros();
+    if(detector.add(enabled,true,a,g*(1/DEG)))detector.result.inferenceUs=micros()-inferenceStart;
     portENTER_CRITICAL(&mux);
+    movement=detector.result;
     latest.q=reference.inverse()*orientation;latest.a=a;latest.gyro=(g-bias)*(1/DEG);latest.linear=filtered;
     latest.ok=true;latest.calibrated=calibrated;latest.stamp=millis();latest.seq++;
     latest.calibration=status;latest.progress=status==1?calibration.progress():0;
@@ -174,12 +183,15 @@ String json() {
   snprintf(b,sizeof(b),"{\"ok\":%s,\"calibrated\":%s,\"calibration\":%d,\"progress\":%d,\"seq\":%lu,\"age\":%lu,\"q\":[%.6f,%.6f,%.6f,%.6f],\"a\":[%.4f,%.4f,%.4f],\"gyro\":[%.3f,%.3f,%.3f],\"linear\":[%.4f,%.4f,%.4f],\"errors\":%lu,\"accelNoise\":%.4f,\"gyroNoise\":%.4f,\"accelScale\":%.5f}",
     s.ok?"true":"false",s.calibrated?"true":"false",s.calibration,s.progress,(unsigned long)s.seq,(unsigned long)(millis()-s.stamp),
     s.q.w,s.q.x,s.q.y,s.q.z,s.a.x,s.a.y,s.a.z,s.gyro.x,s.gyro.y,s.gyro.z,s.linear.x,s.linear.y,s.linear.z,(unsigned long)s.errors,s.accelNoise,s.gyroNoise,s.accelScale);
-  String result(b);result.remove(result.length()-1);result+=",\"recording\":";result+=recordJson();result+='}';return result;
+  MovementResult m;portENTER_CRITICAL(&mux);m=movement;portEXIT_CRITICAL(&mux);
+  char extra[220];snprintf(extra,sizeof(extra),",\"detection\":{\"running\":%s,\"state\":%d,\"p_shaking\":%.5f,\"inference_us\":%lu,\"led_pin\":%d}",m.running?"true":"false",m.state,m.probability,(unsigned long)m.inferenceUs,MOTION_RGB_PIN);
+  String result(b);result.remove(result.length()-1);result+=extra;result+=",\"recording\":";result+=recordJson();result+='}';return result;
 }
 void setup() {
   Serial.begin(115200);
-  xTaskCreatePinnedToCore(sampling,"imu",4096,nullptr,2,nullptr,1);
+  xTaskCreatePinnedToCore(sampling,"imu",8192,nullptr,2,nullptr,1);
   WiFi.mode(WIFI_AP);WiFi.softAP("HiJack-Motion","hijack32");WiFi.setSleep(false);
+  setupBleMonitor();
   server.on("/",HTTP_GET,[]{server.send_P(200,"text/html; charset=utf-8",WEB_UI);});
   server.on("/api/state",HTTP_GET,[]{server.sendHeader("Cache-Control","no-store");server.send(200,"application/json",json());});
   server.on("/api/calibrate",HTTP_POST,[]{
@@ -195,11 +207,13 @@ void setup() {
   Serial.printf("\nHIJACK MOTION READY | Wi-Fi: HiJack-Motion | password: hijack32 | http://%s\n",WiFi.softAPIP().toString().c_str());
 }
 void loop() {
+  updateBleMonitor();
   server.handleClient();
   // On-demand development diagnostics; acquisition/fusion remain on the chip.
   if(Serial.available()) {
     char c=Serial.read();if(c=='?')Serial.println(json());
     if(c=='c' && snapshot().ok && recordInfo().phase!=RECORD_ACTIVE) {portENTER_CRITICAL(&mux);requested=true;portEXIT_CRITICAL(&mux);}
+    if(c=='s'||c=='x') {portENTER_CRITICAL(&mux);detectionRequested=c=='s';portEXIT_CRITICAL(&mux);}
   }
   delay(1);
 }

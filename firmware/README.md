@@ -1,6 +1,12 @@
 # Motion extension: ESP32-hosted 3D orientation
 
-This first firmware implements the motion extension only. Breathing classification and the BLE breathing monitor are still to be implemented. The embedded page needs no internet, CDN, external JavaScript library or separate filesystem upload.
+This firmware implements the motion extension, CSV recording and a trained two-state movement detector with BLE control. Breathing classification and the full BLE breathing-alarm monitor remain pending. The embedded motion page needs no internet, CDN, external JavaScript library or separate filesystem upload.
+
+## Movement detection over BLE
+
+Open <https://adajirik.github.io/HiJack_breathing/> in Android Chrome or iPhone Bluefy, connect to **HiJack-Detect**, then press **Start detection**. The first result follows a one-second sampling window. Blue means `not_attached`; magenta means `shaking`. Stop turns the RGB LED off. The phone displays the same RGB state, plus connection status and recent movement history. All features/classification execute on the ESP32; USB is only needed for power during the demonstration. The motion dashboard and CSV recorder remain available independently over Wi-Fi.
+
+See [training details and honest evaluation](../training/README.md) and [BLE protocol/mobile setup](../monitor/README.md). The current held-out window accuracy is 75%; one shaking recording is missed. This model deliberately does not classify either breathing class.
 
 ## Use
 
